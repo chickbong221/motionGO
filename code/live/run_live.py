@@ -12,8 +12,9 @@ Sources
            RealSense delivers, its states); actions are not sent but scored against the recorded ones and against the
            policy run on the offline lift's forecasts with the same noise (the cost of going live)
 
-  robot:   python run_live.py --task B --policy physgo --source robot --port /dev/ttyACM0 --robot_id <calibration id>
-                  --top_serial <RealSense serial> --wrist_cam 0 [--steps 600] [--go_home] [--dry_run] [--max_rel 20]
+  robot:   python run_live.py --task B --policy physgo [--go_home] [--dry_run] [--steps 600] [--max_rel 20]
+           (port, calibration id, RealSense serial and wrist camera are found by devices.py; override with --port,
+           --robot_id, --top_serial, --wrist_cam)
   replay:  python run_live.py --task B --policy physgo --source replay --episodes 1,2 [--data /dev/shm/data/so101_v2]
 Outputs in --out (default ./live_runs/<time>_<task>_<policy>_<source>): steps*.npz (actions, states, timings,
 visibility), summary.json.
@@ -35,7 +36,9 @@ import live_common as C  # noqa: E402
 
 # ------------------------------------------------------------------------------------------------------------ sources
 class RobotSource:
-    def __init__(self, args):
+    def __init__(self, args, calibration_dir=None):
+        from pathlib import Path
+
         from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
         from lerobot.cameras.realsense.configuration_realsense import RealSenseCameraConfig
         from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
@@ -46,9 +49,10 @@ class RobotSource:
                                                   width=640, height=480)
         else:
             w = args.wrist_cam
-            cams["wrist"] = OpenCVCameraConfig(index_or_path=int(w) if w.isdigit() else w, fps=30, width=640, height=480)
-        cfg = SO101FollowerConfig(port=args.port, id=args.robot_id, cameras=cams, use_degrees=True,
-                                  max_relative_target=args.max_rel if args.max_rel > 0 else None,
+            cams["wrist"] = OpenCVCameraConfig(index_or_path=int(w) if w.isdigit() else Path(w), fps=30, width=640,
+                                               height=480)
+        cfg = SO101FollowerConfig(port=args.port, id=args.robot_id, calibration_dir=calibration_dir, cameras=cams,
+                                  use_degrees=True, max_relative_target=args.max_rel if args.max_rel > 0 else None,
                                   disable_torque_on_disconnect=not args.keep_torque)
         self.robot = SO101Follower(cfg)
         self.robot.connect()
@@ -252,10 +256,10 @@ def main():
     ap.add_argument("--out", default=None)
     ap.add_argument("--scene_every", type=int, default=0, help="save the scene check image every N steps (0: robot warm-up only)")
     # robot
-    ap.add_argument("--port", default="/dev/ttyACM0")
-    ap.add_argument("--robot_id", default=None, help="LeRobot calibration id of the follower arm used for the recordings")
-    ap.add_argument("--top_serial", default=None, help="RealSense serial number (or name) of the top camera")
-    ap.add_argument("--wrist_cam", default="0", help="OpenCV index / path, or realsense:<serial>")
+    ap.add_argument("--port", default="auto", help="follower arm serial port (auto: the only /dev/ttyACM* or ttyUSB*)")
+    ap.add_argument("--robot_id", default="auto", help="LeRobot calibration id of the follower (auto: the only file)")
+    ap.add_argument("--top_serial", default="auto", help="RealSense serial of the top camera (auto: the only RealSense)")
+    ap.add_argument("--wrist_cam", default="auto", help="OpenCV index / path, or realsense:<serial> (auto: first USB camera)")
     ap.add_argument("--steps", type=int, default=600, help="steps per episode (15 fps; recorded episodes 23-35 s)")
     ap.add_argument("--max_rel", type=float, default=20.0, help="LeRobot max_relative_target per step (0: off)")
     ap.add_argument("--go_home", action="store_true", help="first move slowly to the median start pose of the recordings")
@@ -266,6 +270,10 @@ def main():
     ap.add_argument("--replay_steps", type=int, default=0, help="replay: first N steps only (0: the whole episode)")
     ap.add_argument("--data", default="/dev/shm/data/so101_v2")
     args = ap.parse_args()
+    calib_dir = None
+    if args.source == "robot":   # find the arm, its calibration and the cameras first (seconds, before the models load)
+        import devices
+        calib_dir = devices.resolve(args)
     name = C.dataset_name(args.task)
     meta = C.load_meta()
     if args.mem_frac > 0:
@@ -287,7 +295,7 @@ def main():
 
     results = {}
     if args.source == "robot":
-        src = RobotSource(args)
+        src = RobotSource(args, calibration_dir=calib_dir)
         try:
             if args.go_home:
                 src.go_home(meta[name]["start_state"])

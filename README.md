@@ -31,40 +31,62 @@ bash download.sh
 
 ## 3. Run
 
+Connect the follower arm (USB), the RealSense top camera and the wrist camera. Leave the leader arm unplugged.
+
 ```bash
 export PHYSGO_CODE=$PWD/code PHYSGO_ASSETS=$PWD/assets
 cd code/live
+python devices.py
 ```
+
+`python devices.py` must print a port, a calibration file, a RealSense serial and a wrist camera, with no
+`NOT FOUND`.
 
 Dry run (no motor commands):
 
 ```bash
-python run_live.py --task B --policy physgo --port /dev/ttyACM0 --robot_id <calibration id> --top_serial <RealSense serial> --wrist_cam 0 --dry_run
+python run_live.py --task A --policy physgo --dry_run
+python run_live.py --task B --policy physgo --dry_run
+python run_live.py --task C --policy physgo --dry_run
 ```
 
-Robot run:
+PhysGO on the robot:
 
 ```bash
-python run_live.py --task B --policy physgo --port /dev/ttyACM0 --robot_id <calibration id> --top_serial <RealSense serial> --wrist_cam 0 --go_home
+python run_live.py --task A --policy physgo --go_home
+python run_live.py --task B --policy physgo --go_home
+python run_live.py --task C --policy physgo --go_home
 ```
 
-Plain smolVLA: the same command with `--policy plain`.
+Plain smolVLA on the robot:
 
-Press ENTER to start an episode and Ctrl-C to stop it. Before the first episode, open `scene_check.png` in the run
-folder: the red dots must sit on the real gripper.
+```bash
+python run_live.py --task A --policy plain --go_home
+python run_live.py --task B --policy plain --go_home
+python run_live.py --task C --policy plain --go_home
+```
 
-| Option | Value |
+| Task | Scene |
 |---|---|
-| `--task` | `A` red cube out of the pot, `B` open the drawer and stack the cubes, `C` block into the drawer |
-| `--policy` | `physgo` or `plain` |
-| `--robot_id` | LeRobot calibration id of the follower arm used for the recordings |
-| `--top_serial` | RealSense serial number of the top camera |
-| `--wrist_cam` | OpenCV index or path, or `realsense:<serial>` |
-| `--steps` | steps per episode (default 600) |
-| `--max_rel` | maximum joint change per step (default 20) |
-| `--num_steps` | flow-matching steps (default 10, 5 is faster) |
-| `--sam_ckpt` | local `sam3.1_multiplex.pt` instead of the Hugging Face download |
-| `--keep_torque` | keep motor torque on at exit |
+| `A` | red cube in the steel pot, orange hollow cube |
+| `B` | plastic drawer unit, red cube, blue cube |
+| `C` | plastic drawer unit, red square block |
+
+When the run asks:
+
+- **ENTER to use the calibration file:** press ENTER.
+- **Ready:** check `scene_check.png` in the printed run folder (the red dots must be on the real gripper), then press
+  ENTER to start.
+- **Stop:** press Ctrl-C.
+
+If `devices.py` reports a missing or ambiguous device, add the matching option:
+
+| Option | Example |
+|---|---|
+| `--port` | `--port /dev/ttyACM0` |
+| `--robot_id` | `--robot_id my_so101_follower` (the name of the `.json` file) |
+| `--top_serial` | `--top_serial 135522071234` |
+| `--wrist_cam` | `--wrist_cam /dev/video6` |
 
 Output folder: `code/live/live_runs/<time>_<task>_<policy>_robot/`, holding `steps.npz`, `summary.json` and
 `scene_check.png`.
