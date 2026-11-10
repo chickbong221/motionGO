@@ -1,0 +1,114 @@
+# PhysGSViLTPolicy. Everything mirrors ATM's conf/train_bc/libero_vilt.yaml except (2026-10-23 defaults, chosen
+# after short tests): the forecast interface (forecast_cfg), the language token (on), forecast
+# dropout. The other recipe changes (EMA, weight decay 0.05, GripperClsHead) are NOT used: together on the new interface
+# they scored 0.40 vs 0.76 (duong, 10 epochs); available as options.
+# The older interfaces stay available as options (forecast_cfg token=step, head_input=pool / flat, horizon_stride).
+experiment: physgs_policy
+# SO-101 version (2026-11-07): backbone option. vilt (default) = PhysGSViLTPolicy, everything below as the original;
+# smolvla = physgs.policy.physgs_smolvla.PhysGOSmolVLAPolicy (lerobot/smolvla_base with the same forecast interface:
+# trajectory tokens in the perception stream + flat forecast dynamics into the action head), configured by smolvla_cfg.
+backbone: vilt
+smolvla_cfg:
+  pretrained: lerobot/smolvla_base
+  chunk_size: 25        # actions per chunk at the policy rate (SO-101 15 fps: 1.67 s, smolVLA's 50 at 30 fps)
+  state_dim: 6
+  image_shape: [3, 256, 256]
+  num_steps: 10         # flow-matching steps at inference (smolVLA)
+  freeze_vision_encoder: true
+  train_expert_only: true
+out_dir: runs/policy/${experiment}_seed${seed}
+seed: 0
+lr: 5e-4
+batch_size: 512     # ATM: 4 GPUs x 128 = 512 (A100 80 GB, one step). If it does not fit: lower it and raise
+                    # grad_accum so that batch_size x grad_accum = 512 (the same gradients: no BatchNorm in the policy)
+grad_accum: 1
+num_workers: 8
+epochs: 101
+val_freq: 5
+save_freq: 20
+keep_every: 10      # also keep model_<epoch> every 10 epochs, to choose a checkpoint by rollout success
+clip_grad: 100.
+weight_decay: 1e-4   # ATM (option: 0.05, see the header)
+ema: 0              # off, as ATM (2026-10-27: batch 512 regularises enough). Option: EMA decay per optimizer
+                    # step, starting from the init: 0.999 suits batch 40 (rc_ema 0.70, ~9.4k steps), but at batch 512
+                    # (~2.4k steps on Spatial) it kept ~9% of the random init in model_100 (v2 Spatial 0.175)
+mix_precision: false  # ATM: fp32
+img_size: 128
+frame_stack: 10
+extra_state_keys: ["joint_states", "gripper_states"]
+aug_prob: 0.9
+train_dataset: ???   # list of task dirs, e.g. [data/physgs_libero/libero_spatial/<task>/bc_train_10, ...]
+val_dataset: ???
+forecast_dir: ???    # physgs.engine.precompute_forecast output for the suite
+
+model_cfg:
+  load_path: null
+  obs_cfg:
+    obs_shapes:
+      rgb: [3, 128, 128]
+    img_mean: [0., 0., 0.]
+    img_std: [1.0, 1.0, 1.0]
+    num_views: 2
+    extra_states: ${extra_state_keys}
+    max_seq_len: ${frame_stack}
+  img_encoder_cfg:
+    network_name: PatchEncoder
+    patch_size: [8, 8]
+    embed_size: 128
+    no_patch_embed_bias: false
+  language_encoder_cfg:
+    network_name: MLPEncoder
+    input_size: 768
+    hidden_size: 128
+    num_layers: 1
+  extra_state_encoder_cfg:
+    extra_num_layers: 0
+    extra_hidden_size: 128
+  forecast_cfg:
+    num_objects: ???   # padded object count of the packed LIBERO dataset
+    horizon: 15           # imagined steps; with include_now the policy reads steps 0..15 = 16, as ATM's 16 track steps t..t+15
+    include_now: true     # step 0 = the current (filtered) state, as ATM's tracks start at the current point positions
+    feat_dim: ???      # last dim of the forecast arrays
+    horizon_stride: 1     # every step (v1: 4 -> steps 4, 8, 12, 16 only)
+    token: trajectory     # one token per object: a linear map of its whole forecast trajectory (ATM: one per track)
+    head_input: dyn       # pos, vel, angvel, contact of every object and step into the head (ATM: the flat tracks)
+    dyn_dim: 10           # leading forecast features read by head_input=dyn (joint world model of 10-31: 6 = pos, vel)
+    head_norm: false      # raw, as ATM (LayerNorm tested on duong: no gain)
+    forecast_dropout: 0.1 # training only: the whole forecast of a sample zeroed with this probability
+    object_slots: null    # all packed slots (robot tokens first, then objects and fixture parts)
+    grad_checkpoint: true # recompute the spatial transformer in backward: same results, fits batch 40 fp32 on 24 GB
+    pool_dim: 128
+    use_zero_forecast: false
+  spatial_transformer_cfg:
+    num_layers: 7
+    num_heads: 8
+    head_output_size: 120
+    mlp_hidden_size: 256
+    dropout: 0.1
+    spatial_downsample: true
+    spatial_downsample_embed_size: 64
+    use_language_token: true    # ATM: false (here: on)
+  temporal_transformer_cfg:
+    num_layers: 4
+    num_heads: 6
+    head_output_size: 64
+    mlp_hidden_size: 256
+    dropout: 0.1
+    use_language_token: true    # ATM: false (here: on)
+  policy_head_cfg:
+    network_name: DeterministicHead   # ATM (option: GripperClsHead, the gripper as open / close classification)
+    output_size: [7,]
+    hidden_size: 1024
+    num_layers: 2
+    loss_coef: 1.0
+    action_squash: false
+
+dataset_cfg:
+  img_size: ${img_size}
+  frame_stack: ${frame_stack}
+  num_track_ts: 16
+  num_track_ids: 32
+  extra_state_keys: ${extra_state_keys}
+  cache_all: true
+  cache_image: true
+  state_shift: 1      # robot states of untagged (older) renders moved back one step; v2 renders are never shifted

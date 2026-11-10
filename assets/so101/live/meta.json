@@ -1,0 +1,201 @@
+{
+ "so101-left_arm_task_red_cube_out_of_pot_into_the_orange_hollow_cube": {
+  "start_state": [
+   -6.1978020668029785,
+   -71.78022003173828,
+   83.6043930053711,
+   9.450549125671387,
+   -1.6263736486434937,
+   32.724815368652344
+  ],
+  "start_state_std": [
+   1.776369571685791,
+   7.405566692352295,
+   4.4960503578186035,
+   6.488813400268555,
+   2.4372146129608154,
+   5.73161506652832
+  ],
+  "letter": "A",
+  "task": "Take the red cube out of the steel pot and place it into the orange hollow cube.",
+  "fps": 30,
+  "depth_info": {
+   "depth_unit": "mm",
+   "video.depth_min": 0.01,
+   "video.depth_max": 10.0,
+   "video.shift": 3.5,
+   "video.use_log": true
+  },
+  "gripper_colour": [
+   0.00392156862745098,
+   0.45098039215686275,
+   0.6039215686274509
+  ],
+  "gripper_colour_std": [
+   0.0027526370349356005,
+   0.0386736098235262,
+   0.057307246112748005
+  ],
+  "gripper_colour_n": 51,
+  "prompts": [
+   [
+    "red_cube",
+    "red block",
+    "red block"
+   ],
+   [
+    "pot",
+    "silver pot",
+    "silver pot"
+   ],
+   [
+    "orange_cube",
+    "orange box",
+    "orange hollow cube"
+   ]
+  ],
+  "top_hw": [
+   360,
+   640
+  ],
+  "wrist_hw": [
+   480,
+   640
+  ],
+  "depth_hw": [
+   360,
+   640
+  ]
+ },
+ "so101_left_arm_open_drawer_pick_red_cube_stack_on_blue_cube": {
+  "start_state": [
+   -2.7252748012542725,
+   -68.70330047607422,
+   81.4945068359375,
+   5.97802209854126,
+   11.032966613769531,
+   33.379310607910156
+  ],
+  "start_state_std": [
+   2.2381443977355957,
+   10.609253883361816,
+   11.20497989654541,
+   11.881370544433594,
+   2.922842025756836,
+   8.208333969116211
+  ],
+  "letter": "B",
+  "task": "Open the drawer, pick up the red cube then stack on the blue cube",
+  "fps": 30,
+  "depth_info": {
+   "depth_unit": "mm",
+   "video.depth_min": 0.01,
+   "video.depth_max": 10.0,
+   "video.shift": 3.5,
+   "video.use_log": true
+  },
+  "gripper_colour": [
+   0.00784313725490196,
+   0.5176470588235295,
+   0.6686274509803921
+  ],
+  "gripper_colour_std": [
+   0.06393723631370214,
+   0.024941972441711528,
+   0.0502419535720752
+  ],
+  "gripper_colour_n": 51,
+  "prompts": [
+   [
+    "drawer_unit",
+    "plastic storage box",
+    "plastic storage box"
+   ],
+   [
+    "red_cube",
+    "red block",
+    "red cube"
+   ],
+   [
+    "blue_cube",
+    "blue block",
+    "blue block"
+   ]
+  ],
+  "top_hw": [
+   360,
+   640
+  ],
+  "wrist_hw": [
+   480,
+   640
+  ],
+  "depth_hw": [
+   360,
+   640
+  ]
+ },
+ "so101-left_arm_task_drawer_placing_red_squre_block": {
+  "start_state": [
+   -3.692307710647583,
+   -70.63735961914062,
+   84.74725341796875,
+   8.087912559509277,
+   10.15384578704834,
+   23.517240524291992
+  ],
+  "start_state_std": [
+   6.501369953155518,
+   10.857831001281738,
+   14.960370063781738,
+   14.951269149780273,
+   12.650179862976074,
+   8.048321723937988
+  ],
+  "letter": "C",
+  "task": "Use the left gripper to open the top drawer, pick up the red square block, place it inside the top drawer, and then close the drawer.",
+  "fps": 30,
+  "depth_info": {
+   "depth_unit": "mm",
+   "video.depth_min": 0.01,
+   "video.depth_max": 10.0,
+   "video.shift": 3.5,
+   "video.use_log": true
+  },
+  "gripper_colour": [
+   0.00784313725490196,
+   0.48627450980392156,
+   0.6333333333333333
+  ],
+  "gripper_colour_std": [
+   0.09716293460585687,
+   0.04617479814088862,
+   0.0798360327132941
+  ],
+  "gripper_colour_n": 57,
+  "prompts": [
+   [
+    "drawer_unit",
+    "plastic storage box",
+    "plastic storage box"
+   ],
+   [
+    "red_block",
+    "red block",
+    "red square block"
+   ]
+  ],
+  "top_hw": [
+   360,
+   640
+  ],
+  "wrist_hw": [
+   480,
+   640
+  ],
+  "depth_hw": [
+   360,
+   640
+  ]
+ }
+}

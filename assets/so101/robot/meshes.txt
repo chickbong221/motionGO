@@ -1,0 +1,15 @@
+assets/base_motor_holder_so101_v1.stl
+assets/base_so101_v2.stl
+assets/motor_holder_so101_base_v1.stl
+assets/motor_holder_so101_wrist_v1.stl
+assets/moving_jaw_so101_v1.stl
+assets/rotation_pitch_so101_v1.stl
+assets/sts3215_03a_no_horn_v1.stl
+assets/sts3215_03a_v1.stl
+assets/under_arm_so101_v1.stl
+assets/upper_arm_so101_v1.stl
+assets/waveshare_mounting_plate_so101_v2.stl
+assets/wrist_camera_mount_so101_v1.stl
+assets/wrist_camera_so101_v1.stl
+assets/wrist_roll_follower_so101_v1.stl
+assets/wrist_roll_pitch_so101_v2.stl

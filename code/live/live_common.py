@@ -1,0 +1,47 @@
+"""
+live_common.py (2026-11-10): paths and per-task constants of the live SO-101 pipeline.
+  PHYSGO_CODE    the SO-101 code tree (default /dev/shm/physgo/code_so101: ATM/physgs, ATM/physgs_so101, policy)
+  PHYSGO_ASSETS  the assets tree (default /dev/shm/physgo), the same relative layout as on hessian-p2:
+                   so101/calib/kin_v5.json, so101/calib/<dataset>.json      top camera pose / intrinsics, depth registration
+                   so101/robot/so101_new_calib_camera.urdf (+ assets/)     SO-101 model (forward kinematics)
+                   so101/task_emb/<dataset>.npy                            BERT task embedding (world model context)
+                   so101/policy_h5/norm.json                               joint scaling of the policy
+                   so101/live/meta.json                                    make_meta.py: task text, depth codec, gripper colour
+                   runs/so101/so101_rel4_lab/wm/best.pt                    the world model
+                   runs/so101_policy/<run>/policy/{config.yaml,<ckpt>.ckpt} the policies
+"""
+import json
+import os
+import sys
+
+CODE = os.environ.get("PHYSGO_CODE", "/dev/shm/physgo/code_so101")
+ASSETS = os.environ.get("PHYSGO_ASSETS", "/dev/shm/physgo")
+for _p in (f"{CODE}/policy", f"{CODE}/ATM/physgs_so101", f"{CODE}/ATM"):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+# eval_policy_so101 / infer_check_so101 / so101_policy_h5 put the hessian-p2 code paths first in sys.path when they
+# are imported; import the packages they use now, so they bind to PHYSGO_CODE wherever the pipeline runs
+import physgs  # noqa: E402,F401
+import lift_so101  # noqa: E402,F401
+import so101_kin  # noqa: E402,F401
+
+NAMES = {"A": "so101-left_arm_task_red_cube_out_of_pot_into_the_orange_hollow_cube",
+         "B": "so101_left_arm_open_drawer_pick_red_cube_stack_on_blue_cube",
+         "C": "so101-left_arm_task_drawer_placing_red_squre_block"}
+JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"]
+FPS = 15                     # policy / world-model rate: every 2nd frame of the 30 fps recordings
+WM = "runs/so101/so101_rel4_lab/wm/best.pt"
+POLICIES = {"physgo": ("runs/so101_policy/so101_smolvla1_rel", "model_160"),         # best on val and test
+            "plain": ("runs/so101_policy/so101_smolvla1_rel_plain", "model_50")}     # weak plain smolVLA reference
+
+
+def dataset_name(task):
+    return NAMES.get(task, task)
+
+
+def asset(rel):
+    return os.path.join(ASSETS, rel)
+
+
+def load_meta():
+    return json.load(open(asset("so101/live/meta.json")))

@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+assets/.hf/
+assets/runs/
+assets/so101/calib/
+assets/so101/task_emb/
+assets/so101/policy_h5/
+live_runs/
