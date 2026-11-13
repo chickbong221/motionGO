@@ -29,6 +29,7 @@ import live_common as C
 import lift_so101 as L
 import lift_so101_v2 as L2
 from physgs.data.lift import resample_many
+from physgs.model.layers import farthest_point_sample
 from so101_kin import ARM_LINKS, GRIPPER_LINKS, SO101
 
 NUM_POINTS, MIN_POINTS = L2.NUM_POINTS, L2.MIN_POINTS
@@ -65,7 +66,42 @@ class LiveLifter:
         self.o = torch.tensor(kc["joint_offset"], dtype=torch.float64, device=dev)
         self.s_c, self.o_c = self.s.cpu(), self.o.cpu()
         self.arm_links = tuple(l for l in ARM_LINKS if l not in GRIPPER_LINKS)
+        self._fps_graph_init()
         self.reset()
+
+    def _fps_graph_init(self):
+        """gripper_step's farthest-point sampling (8192 -> 1024 points) as one CUDA-graph replay: the same kernels and
+        indices as physgs.model.layers.farthest_point_sample (checked equal), launched at once instead of 1024 Python
+        iterations (1024 x 5 small kernels, ~100 ms on a busy GPU). The eager loop if the capture fails."""
+        self._fg = None
+        if not str(self.dev).startswith("cuda"):
+            return
+        try:
+            static = torch.zeros(1, 8 * NUM_POINTS, 3, device=self.dev)
+            s = torch.cuda.Stream()
+            s.wait_stream(torch.cuda.current_stream())
+            with torch.cuda.stream(s):
+                for _ in range(2):
+                    farthest_point_sample(static, NUM_POINTS)
+            torch.cuda.current_stream().wait_stream(s)
+            g = torch.cuda.CUDAGraph()
+            with torch.cuda.graph(g):
+                out = farthest_point_sample(static, NUM_POINTS)
+            self._fg = (g, static, out)
+        except Exception as e:  # noqa: BLE001
+            print(f"FPS CUDA graph unavailable ({e}): eager loop", flush=True)
+
+    def _resample_gripper(self, g7, gen):
+        """resample_many([fps_order(g7)], NUM_POINTS, [gen])[0] (same random draw, same FPS), through the CUDA graph
+        when the gripper has more than 8 x 1024 points (always: 12000)."""
+        N = g7.shape[0]
+        if self._fg is None or N <= 8 * NUM_POINTS:
+            return resample_many([L2.fps_order(g7)], NUM_POINTS, [gen])[0]
+        p = g7[torch.randperm(N, device=g7.device, generator=gen)[:8 * NUM_POINTS]]
+        g, static, out = self._fg
+        static.copy_(p[None, :, :3])
+        g.replay()
+        return p[out[0]]
 
     def reset(self, seed=0):
         """New episode (the SAM sessions start at the next step)."""
@@ -91,15 +127,11 @@ class LiveLifter:
         sensor = L.register_depth_gpu(raw[None], self.reg, self.Kreg, top.shape[:2], device=dev)[0]
         valid = L2.edge_free(sensor, self.edge_rel)
         S = np.asarray(state, np.float64)[None]
-        ang = torch.tensor(S, dtype=torch.float64, device=dev) * self.s + self.o
-        G = self.kin.points(ang, GRIPPER_LINKS)[0][0].float()
+        ang, G, g7 = self._gripper(S)
         rob = self.kin.points(ang, ARM_LINKS + L2.CAM_LINKS)[0][0][::4].float()
         O = len(self.names)
         sets, owner = [], []
         npts = np.zeros(O, np.int64)
-        zc = (G.double().cpu().numpy() @ T_bt[:3, :3].T + T_bt[:3, 3])[:, 2]
-        g7 = torch.cat([G, torch.tensor(np.tile(self.grip_col, (len(G), 1)), dtype=torch.float32, device=dev),
-                        torch.tensor(zc / self.Kt[0, 0], dtype=torch.float32, device=dev)[:, None]], 1)
         sets.append(g7); owner.append(0); npts[0] = len(g7)
         self.last = dict(masks=[None] * (O - 1), gripper=G.cpu().numpy())     # for run_live --scene check images
         for k in range(1, O):
@@ -133,6 +165,41 @@ class LiveLifter:
         self.t += 1
         return gauss, npts, dict(sam=t_sam, lift=t_lift, filters=time.perf_counter() - t_end,
                                  lift_points=t_pts - t0 - t_sam, lift_fps=t_end - t_pts)
+
+    def _gripper(self, S):
+        """S (1, 6) joint values -> joint angles, the gripper surface points (kinematics) and its 7-feature token set
+        (position, the dataset's gripper colour, footprint z / f of the top camera)."""
+        dev, T_bt = self.dev, self.T_bt
+        ang = torch.tensor(S, dtype=torch.float64, device=dev) * self.s + self.o
+        G = self.kin.points(ang, GRIPPER_LINKS)[0][0].float()
+        zc = (G.double().cpu().numpy() @ T_bt[:3, :3].T + T_bt[:3, 3])[:, 2]
+        g7 = torch.cat([G, torch.tensor(np.tile(self.grip_col, (len(G), 1)), dtype=torch.float32, device=dev),
+                        torch.tensor(zc / self.Kt[0, 0], dtype=torch.float32, device=dev)[:, None]], 1)
+        return ang, G, g7
+
+    @torch.no_grad()
+    def gripper_step(self, state):
+        """A frame lifted from the joint state alone (2026-11-11, chunked live mode: the 15 fps frames between two
+        planning frames, where SAM cannot keep up): the gripper token exactly as step() builds it (kinematics, the same
+        resampling seed), every object unseen (npts 0, as the offline lift marks a frame without a sighting). The
+        filters' gripper statistics (radius, path length) advance as in step(), so the track rule keeps its timing.
+        Needs step() first (the SAM session starts on frame 0)."""
+        import time
+        assert self.t > 0, "the episode starts with a full step() (SAM session, scene centre)"
+        t0 = time.perf_counter()
+        S = np.asarray(state, np.float64)[None]
+        _, _, g7 = self._gripper(S)
+        O = len(self.names)
+        npts = np.zeros(O, np.int64)
+        npts[0] = len(g7)
+        gen = torch.Generator(device=self.dev).manual_seed(self.seed * 100003 + self.t)
+        gauss = np.zeros((O, NUM_POINTS, 7), np.float16)
+        gauss[0] = self._resample_gripper(g7, gen).cpu().numpy().astype(np.float16)
+        gauss = gauss.astype(np.float32)
+        t1 = time.perf_counter()
+        self._filters(gauss, npts, S[0])
+        self.t += 1
+        return gauss, npts, dict(sam=0.0, lift=t1 - t0, filters=time.perf_counter() - t1, lift_points=0.0, lift_fps=0.0)
 
     def scene_image(self, top):
         """The top image with the last step's object masks (tinted) and the posed gripper model projected with the

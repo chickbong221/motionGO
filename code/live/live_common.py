@@ -7,8 +7,8 @@ live_common.py (2026-11-10): paths and per-task constants of the live SO-101 pip
                    so101/task_emb/<dataset>.npy                            BERT task embedding (world model context)
                    so101/policy_h5/norm.json                               joint scaling of the policy
                    so101/live/meta.json                                    make_meta.py: task text, depth codec, gripper colour
-                   runs/so101/so101_rel4_lab/wm/best.pt                    the world model
-                   runs/so101_policy/<run>/policy/{config.yaml,<ckpt>.ckpt} the policies
+                   runs/so101/so101_rel4_lab_80k/wm/best.pt                the world model
+                   runs/<policy>/policy/{config.yaml,model.ckpt}           the policies (physgo, plain_smolVLA)
 """
 import json
 import os
@@ -30,9 +30,11 @@ NAMES = {"A": "so101-left_arm_task_red_cube_out_of_pot_into_the_orange_hollow_cu
          "C": "so101-left_arm_task_drawer_placing_red_squre_block"}
 JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"]
 FPS = 15                     # policy / world-model rate: every 2nd frame of the 30 fps recordings
-WM = "runs/so101/so101_rel4_lab/wm/best.pt"
-POLICIES = {"physgo": ("runs/so101_policy/so101_smolvla1_rel", "model_160"),         # best on val and test
-            "plain": ("runs/so101_policy/so101_smolvla1_rel_plain", "model_50")}     # weak plain smolVLA reference
+WM80K = "runs/so101/so101_rel4_lab_80k/wm/best.pt"
+# policy -> (run, checkpoint, world model its forecasts come from). Both policies are smolVLA's default chunked setting
+# (512 px, 50 actions at 30 fps, MEAN_STD, relative targets); run_live executes those chunks at 30 Hz
+POLICIES = {"physgo": ("runs/physgo", "model", WM80K),
+            "plain": ("runs/plain_smolVLA", "model", None)}
 
 
 def dataset_name(task):

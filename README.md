@@ -24,10 +24,13 @@ bash download.sh
 |---|---|
 | SAM 3.1 | `facebook/sam3.1`, downloaded on the first run |
 | smolVLA base | `lerobot/smolvla_base`, downloaded on the first run |
-| World model | `TuanDepZai/physgs-so101`: `runs/so101_rel4_lab/wm/best.pt` (`download.sh`) |
-| PhysGO policy | `TuanDepZai/physgs-so101`: `runs/so101_policy/so101_smolvla1_rel/policy/model_160.ckpt` (`download.sh`) |
-| Plain smolVLA policy | `TuanDepZai/physgs-so101`: `runs/so101_policy/so101_smolvla1_rel_plain/policy/model_50.ckpt` (`download.sh`) |
-| Calibration, task embeddings, joint scaling | `TuanDepZai/physgs-so101`: `calib/`, `task_emb/`, `policy_h5/norm.json` (`download.sh`) |
+| World model (PhysGO) | `TuanDepZai/physgs-so101`: `runs/so101_rel4_lab_80k/wm/best.pt` (`download.sh`) |
+| PhysGO policy | `TuanDepZai/physgs-so101`: `placeholder/physgo/model.ckpt` and `config.yaml` (`download.sh`) |
+| Plain smolVLA policy | `TuanDepZai/physgs-so101`: `placeholder/plain_smolVLA/model.ckpt` and `config.yaml` (`download.sh`) |
+| Calibration, task embeddings, joint scaling | `TuanDepZai/physgs-so101`: `calib/`, `task_emb/`, `so101_v3/norm_all.json` (`download.sh`) |
+
+`download.sh` puts everything under `assets/` and checks it against `assets.sha256`. `--policy physgo` loads the PhysGO
+policy and the world model, and `--policy plain` loads the plain smolVLA policy.
 
 ## 3. Run
 
